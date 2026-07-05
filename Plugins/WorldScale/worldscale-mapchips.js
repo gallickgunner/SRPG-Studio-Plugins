@@ -6,9 +6,15 @@ var GGWorldScale = GGWorldScale || {}
 
 GGWorldScale.MapChipRenderer = {
     mapChipAnimInterval: 12,
-    _upperLayerCacheMapInfo: null,
+    _cachedMapInfo: null,
     _upperLayerRows: null,
     _mapChipAnimTick: 0,
+    _baseLayerCache: null,
+    _baseLayerAnimTilesCache: null,
+    _upperLayerAnimTilesCache: null,
+    _baseLayerCacheW: 0,
+    _baseLayerCacheH: 0,
+    _mapChipAnimInfoByName: {},
     mapChipPatches: {}
 }
 
@@ -18,34 +24,21 @@ GGWorldScale.MapChipRenderer.drawScaledMap = function ()
     var mapInfo, startX, startY, endX, endY, x, y;
 
     if (session === null)
-    {
         return;
-    }
-
+    
     mapInfo = session.getCurrentMapInfo();
+
+    if (this._cachedMapInfo != mapInfo)
+        this._cachedMapInfo = mapInfo;
 
     startX = Math.floor(session.getScrollPixelX() / GGWorldScale.Core.getNativeTileWidth());
     startY = Math.floor(session.getScrollPixelY() / GGWorldScale.Core.getNativeTileHeight());
 
-
     endX = startX + Math.ceil(GGWorldScale.Core.getScaledMapViewportWidth() / GGWorldScale.Core.getScaledTileWidth()) + 2;
     endY = startY + Math.ceil(GGWorldScale.Core.getScaledMapViewportHeight() / GGWorldScale.Core.getScaledTileHeight()) + 2;
 
-    for (y = startY; y < endY; y++)
-    {
-        for (x = startX; x < endX; x++)
-        {
-            if (x < 0 || y < 0 || x >= mapInfo.getMapWidth() || y >= mapInfo.getMapHeight())
-            {
-                continue;
-            }
-
-            this.drawMapChip(x, y, false);
-        }
-    }
-
-    // Sparse/cached upper layer.
-    // This avoids checking/drawing upper layer for every visible tile every frame.
+    this.drawCachedBaseLayer();
+    this.drawBaseLayerAnimTiles(startX, startY, endX, endY);
     this.drawCachedUpperLayer(startX, startY, endX, endY);
 }
 
@@ -60,29 +53,15 @@ GGWorldScale.MapChipRenderer.drawMapChip = function (mapX, mapY, isUpper)
     var srcX, srcY;
     var xDest, yDest;
 
-    if (session === null)
-    {
-        return;
-    }
-
     handle = session.getMapChipGraphicsHandle(mapX, mapY, isUpper);
 
-    if (handle === null)
-    {
-        return;
-    }
-
     if (isUpper && handle === null)
-    {
         return;
-    }
 
     pic = GraphicsRenderer.getGraphics(handle, GraphicsType.MAPCHIP);
 
     if (pic === null)
-    {
         return;
-    }
 
     GGWorldScale.Core.setImageNearest(pic);
 
@@ -117,15 +96,11 @@ GGWorldScale.MapChipRenderer.parseAnimatedMapChipFrameCount = function (name)
 {
     var i, ch, text;
 
-    if (name === null || typeof name === 'undefined')
-    {
+    if (name == null)
         return 0;
-    }
 
     if (name.length < 2 || name.charAt(0) !== '!')
-    {
         return 0;
-    }
 
     text = '';
 
@@ -142,9 +117,7 @@ GGWorldScale.MapChipRenderer.parseAnimatedMapChipFrameCount = function (name)
     }
 
     if (text.length === 0)
-    {
         return 0;
-    }
 
     return parseInt(text, 10);
 };
@@ -166,30 +139,27 @@ GGWorldScale.MapChipRenderer.advanceMapChipAnimation = function ()
 
 GGWorldScale.MapChipRenderer.getMapChipAnimationInfoFromPic = function (pic)
 {
-    var name, frameCount, imageHeight, frameHeight;
+    var name, frameCount, frameHeight;
 
     name = pic.getName();
+
+    if (this._mapChipAnimInfoByName[name] != null)
+		return this._mapChipAnimInfoByName[name];
+
     frameCount = this.parseAnimatedMapChipFrameCount(name);
-
+    
     if (frameCount <= 1)
-    {
         return null;
-    }
 
-    imageHeight = pic.getHeight();
-
-    if (imageHeight <= 0)
-    {
-        return null;
-    }
-
-    frameHeight = Math.floor(imageHeight / frameCount);
-
-    return {
+    frameHeight = Math.floor(pic.getHeight() / frameCount);
+    var info = {
         name: name,
         frameCount: frameCount,
         frameHeight: frameHeight
     };
+
+    this._mapChipAnimInfoByName[name] = info;
+    return this._mapChipAnimInfoByName[name];
 };
 
 GGWorldScale.MapChipRenderer.updateUpperLayerCacheTile = function (mapX, mapY)
@@ -272,17 +242,11 @@ GGWorldScale.MapChipRenderer.drawCachedUpperLayer = function (startX, startY, en
     var srcX, srcY, frameIndex;
 
     if (!GGWorldScale.Config.drawUpperLayer)
-    {
         return;
-    }
 
     this.ensureUpperLayerCache();
 
-    if (this._upperLayerRows === null)
-    {
-        return;
-    }
-
+   
     for (y = startY; y < endY; y++)
     {
         row = this._upperLayerRows[y];
@@ -333,30 +297,19 @@ GGWorldScale.MapChipRenderer.drawCachedUpperLayer = function (startX, startY, en
 };
 
 GGWorldScale.MapChipRenderer.ensureUpperLayerCache = function ()
-{
+{   
+    if (this._upperLayerRows !== null)
+        return;
+
     var session = root.getCurrentSession();
-    var mapInfo, mapW, mapH;
+    var mapW, mapH;
     var x, y, handle, pic, row, entry, animInfo;
     var srcW = GGWorldScale.Core.getNativeTileWidth();
     var srcH = GGWorldScale.Core.getNativeTileHeight();
-
-    if (session === null)
-    {
-        return;
-    }
-
-    mapInfo = session.getCurrentMapInfo();
-
-    if (this._upperLayerCacheMapInfo === mapInfo && this._upperLayerRows !== null)
-    {
-        return;
-    }
-
-    this._upperLayerCacheMapInfo = mapInfo;
     this._upperLayerRows = [];
 
-    mapW = mapInfo.getMapWidth();
-    mapH = mapInfo.getMapHeight();
+    mapW = this._cachedMapInfo.getMapWidth();
+    mapH = this._cachedMapInfo.getMapHeight();
 
     for (y = 0; y < mapH; y++)
     {
@@ -367,19 +320,10 @@ GGWorldScale.MapChipRenderer.ensureUpperLayerCache = function ()
             handle = session.getMapChipGraphicsHandle(x, y, true);
 
             if (handle === null)
-            {
                 continue;
-            }
 
             pic = GraphicsRenderer.getGraphics(handle, GraphicsType.MAPCHIP);
-
-            if (pic === null)
-            {
-                continue;
-            }
-
             GGWorldScale.Core.setImageNearest(pic);
-
             animInfo = this.getMapChipAnimationInfoFromPic(pic);
 
             entry = {
@@ -402,6 +346,173 @@ GGWorldScale.MapChipRenderer.ensureUpperLayerCache = function ()
     }
 };
 
+GGWorldScale.MapChipRenderer.ensureBaseLayerCache = function ()
+{
+	var session = root.getCurrentSession();
+
+	if (this._baseLayerCache !== null)
+		return;
+
+	var gm = root.getGraphicsManager();
+	var mapW = this._cachedMapInfo.getMapWidth();
+	var mapH = this._cachedMapInfo.getMapHeight();
+	var tileW = GGWorldScale.Core.getNativeTileWidth();
+	var tileH = GGWorldScale.Core.getNativeTileHeight();
+	var cacheW = mapW * tileW;
+	var cacheH = mapH * tileH;
+	var x, y, resourceSrcX, resourceSrcY;
+	var handle, pic, animInfo;
+	var row;
+
+	this._baseLayerAnimTilesCache = [];
+	this._baseLayerCacheW = cacheW;
+	this._baseLayerCacheH = cacheH;
+
+    this._baseLayerCache = gm.createCacheGraphics(cacheW, cacheH);
+
+	if (this._baseLayerCache == null)
+        throw new Error("Base Layer Cache generation failed!. Perhaps cache/map size is too large");
+
+	gm.setRenderCache(this._baseLayerCache);
+
+	// Transparent clear. 
+	gm.fill(0x000000);
+
+    // Build a base layer cache
+	for (y = 0; y < mapH; y++)
+	{
+		row = [];
+
+		for (x = 0; x < mapW; x++)
+		{
+			handle = session.getMapChipGraphicsHandle(x, y, false);
+			if (handle == null)
+				continue;
+
+			pic = GraphicsRenderer.getGraphics(handle, GraphicsType.MAPCHIP);
+
+			if (pic == null)
+				continue;            
+
+			resourceSrcX = handle.getSrcX() * tileW;
+			resourceSrcY = handle.getSrcY() * tileH;
+
+			animInfo = this.getMapChipAnimationInfoFromPic(pic);
+
+			if (animInfo != null)
+			{
+				row.push({
+					tileX: x,
+					tileY: y,
+					pic: pic,
+					resX: resourceSrcX,
+					resY: resourceSrcY,
+					frameCount: animInfo.frameCount,
+					frameHeight: animInfo.frameHeight
+				});
+                GGWorldScale.Core.setImageNearest(pic);
+				// Don't bake animated tiles into the static cache.
+				continue;
+			}
+
+			pic.drawParts(
+				x * tileW,
+				y * tileH,
+				resourceSrcX,
+				resourceSrcY,
+				tileW,
+				tileH
+			);
+		}
+
+		this._baseLayerAnimTilesCache[y] = row;
+	}
+
+	gm.resetRenderCache();
+	GGWorldScale.Core.setImageNearest(this._baseLayerCache);
+};
+
+GGWorldScale.MapChipRenderer.drawCachedBaseLayer = function ()
+{
+
+	var session = root.getCurrentSession();
+	var scrollX, scrollY;
+	var srcW, srcH;
+	var destX, destY, destW, destH;
+
+    this.ensureBaseLayerCache();
+
+	scrollX = session.getScrollPixelX();
+	scrollY = session.getScrollPixelY();
+
+	srcW = GGWorldScale.Core.getScaledMapViewportWidthInNative();
+	srcH = GGWorldScale.Core.getScaledMapViewportHeightInNative();
+    destX = GGWorldScale.Core.getScaledMapViewportX();
+	destY = GGWorldScale.Core.getScaledMapViewportY();
+	destW = GGWorldScale.Core.getScaledMapViewportWidth();
+	destH = GGWorldScale.Core.getScaledMapViewportHeight();
+
+	this._baseLayerCache.drawStretchParts(
+		destX,
+		destY,
+		destW,
+		destH,
+		scrollX,
+		scrollY,
+		srcW,
+		srcH
+	);
+};
+
+GGWorldScale.MapChipRenderer.drawBaseLayerAnimTiles = function (startX, startY, endX, endY)
+{
+    if (this._baseLayerAnimTilesCache == null)
+		return;
+
+	var y, i, row, entry;
+	var tileW = GGWorldScale.Core.getNativeTileWidth();
+	var tileH = GGWorldScale.Core.getNativeTileHeight();
+	var destW = GGWorldScale.Core.getScaledTileWidth();
+	var destH = GGWorldScale.Core.getScaledTileHeight();
+	var xDest, yDest, frameIndex, srcY;
+
+	for (y = startY; y < endY; y++)
+	{
+		row = this._baseLayerAnimTilesCache[y];
+
+		if (row == null || y < 0 || y >= this._cachedMapInfo.getMapHeight())
+			continue;
+
+		for (i = 0; i < row.length; i++)
+		{
+			entry = row[i];
+
+			if (entry.tileX < startX || entry.tileX >= endX)
+				continue;
+
+            // Find the updated tile for this animation
+			frameIndex = this.getMapChipAnimationFrameIndex(entry.frameCount);
+			srcY = entry.resY + frameIndex * entry.frameHeight;
+
+			xDest = GGWorldScale.Core.nativeMapTileToScaledPixelX(entry.tileX);
+			yDest = GGWorldScale.Core.nativeMapTileToScaledPixelY(entry.tileY);
+
+			if (!GGWorldScale.Core.isScreenVisible(xDest, yDest, destW, destH))
+				continue;
+
+			entry.pic.drawStretchParts(
+				xDest,
+				yDest,
+				destW,
+				destH,
+				entry.resX,
+				srcY,
+				tileW,
+				tileH
+			);
+		}
+	}
+};
 
 GGWorldScale.MapChipRenderer.drawIndexArrayFade = function (indexArray, color, alpha)
 {
@@ -585,7 +696,7 @@ GGWorldScale.MapChipRenderer.mapChipPatches.patchDynamicAnime = function ()
         // Most item/warp/state map effects land here.
         this._GGWorldScaleMapAnime = root.getCurrentSession() !== null;
 
-        return aliasStartDynamicAnime.call(this, anime, x, y);
+        return aliasStartDynamicAnime.call(this, anime, x + GGWorldScale.Core.getScaledMapViewportXInNative(), y + GGWorldScale.Core.getScaledMapViewportYInNative());
     };
 
     DynamicAnime.drawDynamicAnime = function ()
@@ -597,7 +708,7 @@ GGWorldScale.MapChipRenderer.mapChipPatches.patchDynamicAnime = function ()
             GGWorldScale.Core.withScaledWorldMatrix(function ()
             {
                 var gm = root.getGraphicsManager();
-        	    gm.enableMapClipping(false);
+                gm.enableMapClipping(false);
                 aliasDrawDynamicAnime.call(self);
                 gm.enableMapClipping(true);
             });
