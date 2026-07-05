@@ -109,15 +109,28 @@ GGWorldScale.Core = {
         return Math.floor((screenH - mapScaledHeight) / 2);
     },
 
+    getScaledMapViewportXInNative: function()
+    {
+        return this.getScaledMapViewportX() / GGWorldScale.Config.scale;
+    }, 
+
+    getScaledMapViewportYInNative: function()
+    {
+        return this.getScaledMapViewportY() / GGWorldScale.Config.scale;
+    },
 
     nativeToScaledPixelX: function (xPixel)
     {
-        return Math.floor(xPixel * GGWorldScale.Config.scale);
+        var session = root.getCurrentSession();
+        //return Math.floor(xPixel * GGWorldScale.Config.scale);
+        return (this.getScaledMapViewportX() + Math.floor((xPixel) * GGWorldScale.Config.scale));
     },
 
     nativeToScaledPixelY: function (yPixel)
     {
-        return Math.floor(yPixel * GGWorldScale.Config.scale);
+        //return Math.floor(yPixel * GGWorldScale.Config.scale);
+        var session = root.getCurrentSession();
+        return (this.getScaledMapViewportY() + Math.floor((yPixel) * GGWorldScale.Config.scale));
     },
     
     // Session scroll remains in original SRPG MAPCHIP_WIDTH pixels. The screen sees fewer base pixels once the world is scaled.    
