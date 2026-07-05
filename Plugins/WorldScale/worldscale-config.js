@@ -1,9 +1,9 @@
 var GGWorldScale = GGWorldScale || {}
 
 GGWorldScale.Config = {
-	enabled: false,
+	enabled: true,
 	scale: 2,
-	drawUpperLayer: false,
+	drawUpperLayer: true,
 	mapChipAnimInterval: 12,
 	useNearestNeighbor: true
 };

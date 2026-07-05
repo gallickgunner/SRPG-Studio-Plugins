@@ -29,12 +29,9 @@ GGWorldScale.CharChipRenderer.scaledCustomCharChipRenderer = defineObject(BaseCu
 		// Called for normal map idle units.
 		drawCustomCharChip: function (cpData)
 		{
-			var gm = root.getGraphicsManager();
-			gm.enableMapClipping(false);
 			this._drawScaledDecorations(this, cpData, 'before');
 			this._drawScaledCharChip(cpData);
 			this._drawScaledDecorations(this, cpData, 'after');
-			gm.enableMapClipping(true);
 		},
 
 		// Called for unit menu, movement on map, and easy battles.
@@ -71,6 +68,12 @@ GGWorldScale.CharChipRenderer.scaledCustomCharChipRenderer = defineObject(BaseCu
 		// Custom functions added
 		_drawScaledDecorations: function (renderer, cpData, phase)
 		{
+			var scale = GGWorldScale.Config.scale;
+			
+			//We need to calculate nativeMap Viewport X,Y because once we disable clipping, root.getViewport X,Y isn't reliable. It'll probably give us 0
+			var nativeMapVpX = GGWorldScale.Core.getScaledMapViewportXInNative();
+			var nativeMapVpY =  GGWorldScale.Core.getScaledMapViewportYInNative();
+
 			GGWorldScale.Core.withScaledWorldMatrix(function ()
 			{
 				var x = cpData.xPixel;
@@ -78,84 +81,71 @@ GGWorldScale.CharChipRenderer.scaledCustomCharChipRenderer = defineObject(BaseCu
 
 				if (phase === 'before')
 				{
-					renderer._drawSymbol(x, y, cpData);
+					renderer._drawSymbol(x + nativeMapVpX, y + nativeMapVpY, cpData);
 				}
 				else
 				{
-					renderer._drawHpGauge(x, y, cpData);
-					renderer._drawStateIcon(x, y, cpData);
+					renderer._drawHpGauge(x + nativeMapVpX, y + nativeMapVpY, cpData);
+					renderer._drawStateIcon(x + nativeMapVpX, y + nativeMapVpY, cpData);
 				}
 			});
 		},
 
 		_drawScaledCharChip: function (cpData)
-		{
-			var param;
-			param = StructureBuilder.buildUnitRenderParam();
+		{			
+			var unit = cpData.unit;
+			var colorIndex = cpData.unitType;
+			if (unit == null)
+				return;
 
-			UnitRenderer._setDefaultParam(cpData.unit, param);
+			var handle = unit.getCustomCharChipHandle();
+			if (handle == null)
+				handle = unit.getCharChipResourceHandle();
 
-			param.isScroll = true;
-			param.animationIndex = cpData.animationIndex;
-			param.direction = cpData.direction;
-			param.alpha = cpData.alpha;
+			if (handle == null)
+				return;
 
-			// Set custom parameter from Native custom charchip data that gives wait state directly.
-			param.isWaitState = cpData.isWait;
+			var pic = UnitRenderer._getGraphics(handle, colorIndex);
 
-			var dx, dy, dxSrc, dySrc;
-			var directionArray = [4, 1, 2, 3, 0];
-			var handle = param.handle;
+			if (pic == null)
+				return;
+
+			var animIndex = cpData.animationIndex;
+			var dirIndex = cpData.direction;
+			var directionArray = [4, 1, 2, 3, 0];						
+			
 			var width = GraphicsFormat.CHARCHIP_WIDTH;
 			var height = GraphicsFormat.CHARCHIP_HEIGHT;
-			var tileSize = UnitRenderer._getTileSize(param);
-			var xSrc, ySrc, pic;
-			var nativeDestX, nativeDestY, scaledDestX, scaledDestY, destW, destH;
+			var tileW = GraphicsFormat.MAPCHIP_WIDTH;
+			var tileH = GraphicsFormat.MAPCHIP_HEIGHT;			
+			
+			var dx = Math.floor((width - tileW) / 2);
+			var dy = Math.floor((height - tileH) / 2);
+						
+			var xSrc, ySrc;
+			var nativeDestX, nativeDestY, scaledDestX, scaledDestY, destW, destH;			
+			
+			var dirRow = directionArray[dirIndex];
 
-			if (handle === null)
-			{
-				return;
-			}
-
-			pic = UnitRenderer._getGraphics(handle, param.colorIndex);
-
-			if (pic === null)
-			{
-				return;
-			}
-
-			xSrc = handle.getSrcX() * (width * 3);
-			ySrc = handle.getSrcY() * (height * 5);
-
-			dx = Math.floor((width - tileSize.width) / 2);
-			dy = Math.floor((height - tileSize.height) / 2);
-
-			dxSrc = param.animationIndex;
-			dySrc = directionArray[param.direction];
-
-			if (dxSrc < 0 || typeof dxSrc !== 'number')
-			{
+			if (animIndex < 0 || typeof animIndex !== 'number')
 				dxSrc = 0;
-			}
 
-			if (dySrc < 0 || typeof dySrc !== 'number')
-			{
-				dySrc = 4;
-			}
+			if (dirRow < 0 || typeof dirRow !== 'number')
+				dirRow = 4;
 
+			xSrc = handle.getSrcX() * (width * 3) + (animIndex * width);
+			ySrc = handle.getSrcY() * (height * 5) + (dirRow * height);
+			
 			nativeDestX = cpData.xPixel - dx;
 			nativeDestY = cpData.yPixel - dy;
 			scaledDestX = Math.floor(GGWorldScale.Core.nativeToScaledPixelX(nativeDestX));
 			scaledDestY = Math.floor(GGWorldScale.Core.nativeToScaledPixelY(nativeDestY));
+			
 			destW = width * GGWorldScale.Config.scale;
-			destH = height * GGWorldScale.Config.scale;
-			xSrc = xSrc + (dxSrc * width);
-			ySrc = ySrc + (dySrc * height)
+			destH = height * GGWorldScale.Config.scale;			
 
 			if (!GGWorldScale.Core.isScreenVisible(scaledDestX, scaledDestY, destW, destH))
-			{
 				return;
-			}
 
 			GGWorldScale.Core.setImageNearest(pic);
 
@@ -174,6 +164,7 @@ GGWorldScale.CharChipRenderer.scaledCustomCharChipRenderer = defineObject(BaseCu
 					width,
 					height
 				);
+				pic.setAlpha(255);
 			}
 		},
 
@@ -185,19 +176,19 @@ GGWorldScale.CharChipRenderer.scaledCustomCharChipRenderer = defineObject(BaseCu
 				this._waitStateComp.reset();
 
 			this._waitStateComp.setImage(pic);
-			this._waitStateComp.setSaturation(0.1);
-
-			// Optional: darken/lighten the grayscale result.
-			// 1.0 = unchanged brightness.
-			// comp.setBrightness(0.85);
+			this._waitStateComp.setSaturation(0.0);
 			this._waitStateComp.composite(CompositeMode.SOURCE_OVER);
 			pic.setComposition(this._waitStateComp);
+
+			//We need to calculate nativeMap Viewport X,Y because once we disable clipping, root.getViewport X,Y isn't reliable. It'll probably give us 0
+			var nativeMapVpX = GGWorldScale.Core.getScaledMapViewportXInNative();
+			var nativeMapVpY =  GGWorldScale.Core.getScaledMapViewportYInNative();
 
 			GGWorldScale.Core.withScaledWorldMatrix(function ()
 			{
 				pic.drawParts(
-					dx,
-					dy,
+					dx + nativeMapVpX,
+					dy + nativeMapVpY,
 					sx,
 					sy,
 					sw,
