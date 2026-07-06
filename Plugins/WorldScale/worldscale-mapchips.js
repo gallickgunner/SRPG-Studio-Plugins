@@ -35,7 +35,6 @@ GGWorldScale.MapChipRenderer.createCache = function ()
     GGWorldScale.Core.setImageNearest(this._mapLayerCache);
 };
 
-
 GGWorldScale.MapChipRenderer.drawScaledMapLayerFromCache = function ()
 {
     //Draw map via native call into rendertarget then scale it onto window
@@ -71,8 +70,6 @@ GGWorldScale.MapChipRenderer.drawScaledMapLayerFromCache = function ()
         this._cacheH
     );
 };
-
-
 
 GGWorldScale.MapChipRenderer.drawIndexArrayFade = function (indexArray, color, alpha)
 {
@@ -176,7 +173,6 @@ GGWorldScale.MapChipRenderer.drawScaledWavePanelTile = function (mapX, mapY, pic
         );
     }
 };
-
 
 GGWorldScale.MapChipRenderer.drawIndexArrayWavePanel = function (indexArray, pic, scrollCount)
 {

@@ -99,5 +99,5 @@ Legend:
 These exist in `worldscale-UI.js`, but `worldscale-main.js` currently has this patch group commented out:
 
 ## Installation
-Place the plugin files in SRPG Studio's plugin folder and enjoy
+Place the plugin files in SRPG Studio's plugin folder and enjoy. Change scale and plugin enable/disable from config file
 
