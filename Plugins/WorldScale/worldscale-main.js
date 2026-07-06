@@ -4,8 +4,10 @@
     SetupControl.setup = function ()
     {
         aliasSetup.call(this);
-        if (!GGWorldScale.Config.enabled)
+        if (!GGWorldScale.Config.enabled || GGWorldScale.Config.scale == 1)
             return;
+
+        GGWorldScale.Config.setScale();
         runAllPatches(GGWorldScale.CharChipRenderer.patches);
         runAllPatches(GGWorldScale.MapChipRenderer.patches);
         runAllPatches(GGWorldScale.Navigation.patches);
