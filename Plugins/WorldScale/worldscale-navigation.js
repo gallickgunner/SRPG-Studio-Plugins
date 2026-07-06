@@ -4,10 +4,12 @@
 
 var GGWorldScale = GGWorldScale || {}
 
-GGWorldScale.NavigationPatches = {};
+GGWorldScale.Navigation = {
+    patches:{}
+};
 
 
-GGWorldScale.NavigationPatches.patchMouseControl = function ()
+GGWorldScale.Navigation.patches.patchMouseControl = function ()
 {
     MouseControl.prepareMouseControl = function ()
     {
@@ -161,7 +163,6 @@ GGWorldScale.NavigationPatches.patchMouseControl = function ()
     MouseControl._adjustMapCursor = function ()
     {
         var session = root.getCurrentSession();
-        var mouseX, mouseY;
         var xCursor, yCursor;
 
         if (session === null || !GGWorldScale.Core.isMouseInsideScaledMapViewport())
@@ -169,16 +170,9 @@ GGWorldScale.NavigationPatches.patchMouseControl = function ()
             return;
         }
 
-        //mouseX = GGWorldScale.Core.getMouseXInScaledMap();
-        //mouseY = GGWorldScale.Core.getMouseYInScaledMap();
-        
-        
-        //root.log('mouseX API: ' + root.getMouseX()); 
-        //root.log('mouseX: ' + GGWorldScale.Core.getMouseXInScaledMap());
-        //root.log('vpX: ' + GGWorldScale.Core.getScaledMapViewportX());
         xCursor = GGWorldScale.Core.scaledPixelToNativeMapTileX(root.getMouseX());
         yCursor = GGWorldScale.Core.scaledPixelToNativeMapTileY(root.getMouseY());
-        //root.log('xCrsr: ' + xCursor);
+
         // Clamp to valid map bounds.
         if (xCursor < 0)
         {
@@ -203,7 +197,7 @@ GGWorldScale.NavigationPatches.patchMouseControl = function ()
     };
 };
 
-GGWorldScale.NavigationPatches.patchCurrentMap = function ()
+GGWorldScale.Navigation.patches.patchCurrentMap = function ()
 {
     CurrentMap.getCol = function ()
     {
@@ -218,7 +212,7 @@ GGWorldScale.NavigationPatches.patchCurrentMap = function ()
 
 // Patch functionality for centering around a pixel/target. Remember that scrolling should happen in native unscaled map space. So everything must be in native space here 
 // to work well with session.setScrollPixel which is a native api function expecting pixel offsets in native space i.e. whatever mapchip_width setting is.
-GGWorldScale.NavigationPatches.patchMapView = function ()
+GGWorldScale.Navigation.patches.patchMapView = function ()
 {
     MapView.getScrollPixelPos = function (xPixel, yPixel)
     {
@@ -226,13 +220,8 @@ GGWorldScale.NavigationPatches.patchMapView = function ()
         var width = GGWorldScale.Core.getScaledMapViewportWidthInNative();
         var height = GGWorldScale.Core.getScaledMapViewportHeightInNative();
         
-        root.log("pixel x :" + xPixel);
-        root.log("area w :" + width);
-
         xScroll = xPixel - Math.floor(width / 2);
         yScroll = yPixel - Math.floor(height / 2);
-        
-        root.log("scroll w :" + xScroll);
         
         xScroll = GGWorldScale.Core.clampScrollX(xScroll);
         yScroll = GGWorldScale.Core.clampScrollY(yScroll);
@@ -295,7 +284,7 @@ GGWorldScale.NavigationPatches.patchMapView = function ()
     };
 };
 
-GGWorldScale.NavigationPatches.patchMapCursors = function ()
+GGWorldScale.Navigation.patches.patchMapCursors = function ()
 {
 	MapCursor.drawCursor = function ()
 	{

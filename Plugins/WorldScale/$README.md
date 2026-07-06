@@ -8,7 +8,7 @@ The main benefits are
 
 - Map Size is not tied to screen resolution anymore. You can open a `1920x1080` window. scale a `640x480` native map size `(20 x 15 tiles)` by `3` to get the same almost the result but in `1080p` window
 - Since we can now increase resolution freely, this allows us to always use higher resolutions in projects, design UI assets in HD then downscale them while also keeping map size to our personal size. Previously UI assets would
-have been upscaled from 480p when going in fullscreen. 
+have been upscaled from 480p when going in fullscreen OR you deal with huge maps and tiny visuals due to map size being tied to resolution.
 
 ## Current Status
 
@@ -21,12 +21,8 @@ Current rendering strategy:
 - Anything related to scrolling is done in native SRPG pixel space.
 - The plugin computes its own scaled map viewport instead of relying on `root.getGameAreaWidth()`, `root.getGameAreaHeight()`, `root.getViewportX()`, or `root.getViewportY()`.
 - Map clipping is disabled around custom world rendering so scaled maps can draw outside SRPG Studio's native map viewport/dead-space area. This is needed when native map size is smaller than screen size.
-- Base map layer is rendered once into a cache image, then cropped and stretched each frame.
-- Animated base-layer map chips are excluded from the static cache and drawn separately each frame.
-- Upper-layer map chips are cached as sparse row entries and drawn tile-by-tile once.
-- Units are drawn through a global custom char chip renderer.
-- Wait-state units use `GraphicsComposition` desaturation, with `WorldMatrix` scaling instead of `drawStretchParts`, because composition combined with stretched drawing produces incorrect enlarged blocks.
-
+- Map layer is drawn into a native viewport sized cache every frame, then scaled by the scale factor and rendered in the actual game window. Since the drawing into the cache is done by the native functions and drawing is done every frame, any map chip changes are automatically handled. We also don't need to worry about layering or animated map tiles.
+- Units are drawn via native function calls which are patched. For idle units and animation `session.drawUnitSet()` is used to draw into a transparent cache just like the map. Then the cache image is scaled and overlaid on to the window.
 
 ## Rendering Pipeline
 
@@ -36,31 +32,15 @@ Current rendering strategy:
 
 The replacement:
 
-1. Advances the map-chip animation tick.
-2. Disables native map clipping.
-3. Draws the scaled/cached map with `GGWorldScale.MapChipRenderer.drawScaledMap()`.
-4. Draws the native map grid through a scaled world matrix when grid display is enabled.
-
-### Base Map Layer
-
-The base map layer is cached into a full-map native-size cache image. Static base tiles are baked into this cache once. Each frame, only the visible crop is drawn. Animated base-layer tiles are not baked into the static cache. They are stored and drawn separately each frame.
-
-### Upper Map Layer
-
-Upper-layer map chips are currently cached as row entries, not as a full image cache. We update a single upper tile in the sparse cache on changes like chest opening/closing. It is currently called after `EventTrophy.enterEventTrophyCycle` for chest/trophy-style upper-layer changes.
+1. Disables native map clipping.
+2. Draws the native cache image scaled in the window with `GGWorldScale.MapChipRenderer.drawScaledMapFromCache()`.
+3. Draws the native map grid through a scaled world matrix when grid display is enabled.
 
 ### Unit Layer
 
 `MapLayer.drawUnitLayer` is fully replaced.
 
-The replacement draws native marking/range/light panels first, then disables clipping and calls:
-
-```js
-session.drawUnitSet(true, true, true, index, index2);
-```
-
-Because `CustomCharChipGroup.getFlag` is patched to include `CustomCharChipFlag.GLOBAL`, SRPG Studio routes map unit drawing into `GGWorldScale.CharChipRenderer.scaledCustomCharChipRenderer`.
-
+The replacement works just like the original function but disables clipping and draws the units into a separate cache which is then scaled to fit the window. 
 
 ## Patched Functions
 
@@ -75,17 +55,17 @@ Legend:
 
 | Function | Status | Notes |
 |---|---:|---|
-| `CustomCharChipGroup.getFlag` | Wrapped | Calls original and ORs in `CustomCharChipFlag.GLOBAL`. |
-| `MapLayer.drawUnitLayer` | **Bypassed** | Replaces native unit-layer draw ordering to support scaled unit rendering and disabled clipping. |
+| `UnitRenderer.drawCharChip` | Conditional wrapper | Calls original if char chip is drawn for menu/easy battles etc. Bypasses and draws using custom logic on map for moving animations |
+| `MapLayer.drawUnitLayer` | **Bypassed** | Re-routes the native drawing into the cache. Then scales it, disabling clipping drawing into the game window. |
 
-### Map Chip Rendering
+### Map Rendering
 
 | Function | Status | Notes |
 |---|---:|---|
-| `MapLayer.drawMapLayer` | **Bypassed** | Replaces native `session.drawMapSet` path with custom cached/scaled map drawing. |
+| `MapLayer.drawMapLayer` | **Bypassed** | Re-routes the native drawing into the cache. Then scales it, disabling clipping drawing into the game window.|
 | `MapChipLight.drawLight` | **Bypassed** | Replaces native fade/wave light drawing with scaled panel/fill drawing. |
 | `BattleSetupScene._drawSortieMark` | **Bypassed** | Replaces sortie/deployment panel drawing with scaled wave-panel drawing. |
-| `EventTrophy.enterEventTrophyCycle` | Wrapped | Calls original, then updates one upper-layer cache tile. |
+| `ClipingBattleContainer._createMapCache`| **Bypassed** | Replaces sortie/deployment panel drawing with scaled wave-panel drawing. |
 
 ### Dynamic Anime
 
@@ -113,17 +93,6 @@ Legend:
 | `MapView.getScrollPixelPos` | **Bypassed** | Centers scroll using scaled viewport size converted to native pixels. |
 | `MapView.getScrollableData` | **Bypassed** | Computes scrollability from plugin native max scroll values. |
 | `MapView.isVisiblePixel` | **Bypassed** | Uses scaled viewport size converted to native pixels. |
-
-### Cursors
-
-| Function | Status | Notes |
-|---|---:|---|
-| `MapCursor.drawCursor` | **Bypassed** | Draws map cursor at scaled tile size. |
-| `FocusCursor.drawCursor` | **Bypassed** | Draws focus/lock-on cursor at scaled tile size. |
-| `LockonCursor._drawMapCursor` | **Bypassed** | Draws lock-on cursor using scaled map tile projection. |
-| `PosDoubleCursor.drawCursor` | **Bypassed** | Draws source/destination position-change cursors in scaled map space. |
-| `PosDoubleCursor.drawSrcCursor` | **Bypassed** | Draws source hand/cursor at scaled size. |
-| `PosDoubleCursor.drawDestCursor` | **Bypassed** | Draws destination hand/cursor at scaled size. |
 
 ### Optional LayoutControl Patches
 

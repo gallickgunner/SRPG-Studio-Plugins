@@ -4,14 +4,14 @@
     SetupControl.setup = function ()
     {
         aliasSetup.call(this);
-        if(!GGWorldScale.Config.enabled)
+        if (!GGWorldScale.Config.enabled)
             return;
-        runAllPatches(GGWorldScale.CharChipRenderer.charChipPatches);
-        runAllPatches(GGWorldScale.MapChipRenderer.mapChipPatches);
-        runAllPatches(GGWorldScale.NavigationPatches);
+        runAllPatches(GGWorldScale.CharChipRenderer.patches);
+        runAllPatches(GGWorldScale.MapChipRenderer.patches);
+        runAllPatches(GGWorldScale.Navigation.patches);
         //runAllPatches(GGWorldScale.LayoutControlPatches);
 
-        root.setGlobalCustomRenderer(GGWorldScale.CharChipRenderer.scaledCustomCharChipRenderer);
+        //root.setGlobalCustomRenderer(GGWorldScale.CharChipRenderer.scaledCustomCharChipRenderer);
     };
 })();
 
