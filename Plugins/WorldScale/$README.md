@@ -13,7 +13,7 @@ have been upscaled from 480p when going in fullscreen OR you deal with huge maps
 
 ## Demo
 
-[https://files.catbox.moe/vnwtbm.mp4](Demo)
+[Demo video](https://files.catbox.moe/vnwtbm.mp4)
 
 
 ## Current Status
