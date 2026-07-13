@@ -10,6 +10,12 @@ The main benefits are
 - Since we can now increase resolution freely, this allows us to always use higher resolutions in projects, design UI assets in HD then downscale them while also keeping map size to our personal size. Previously UI assets would
 have been upscaled from 480p when going in fullscreen OR you deal with huge maps and tiny visuals due to map size being tied to resolution.
 
+
+## Demo
+
+[https://files.catbox.moe/vnwtbm.mp4](Demo)
+
+
 ## Current Status
 
 This plugin replaces or wraps major parts of SRPG Studio's map rendering, unit rendering, cursor positioning, mouse scrolling, and map viewport math.
@@ -99,5 +105,4 @@ Legend:
 These exist in `worldscale-UI.js`, but `worldscale-main.js` currently has this patch group commented out:
 
 ## Installation
-Place the plugin files in SRPG Studio's plugin folder and enjoy. Change scale and plugin enable/disable from config file
-
+Place the plugin files in SRPG Studio's plugin folder and enjoy. Change scale and plugin enable/disable from config file. The resolution-config file has options to set scale for different resolutions.
